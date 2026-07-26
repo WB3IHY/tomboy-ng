@@ -79,6 +79,23 @@ begin
     Add(AName + '=' + AValue);
 end;
 
+    // FPC's HMAC unit (HMACSHA1 etc.) returns the digest as a lowercase hex
+    // STRING, not raw bytes - easy to miss since the RawByteString return
+    // type looks like it could be either. OAuth 1.0a's signature is
+    // Base64-of-the-raw-20-byte-digest, so this conversion is required
+    // before Base64 encoding, not optional.
+function HexDigestToRawBytes(const HexDigest: string): string;
+var
+    I: integer;
+begin
+    Result := '';
+    I := 1;
+    while I < Length(HexDigest) do begin
+        Result := Result + chr(StrToInt('$' + copy(HexDigest, I, 2)));
+        inc(I, 2);
+    end;
+end;
+
 function OAuthPercentEncode(const S: string): string;
 const
     Unreserved = ['A'..'Z', 'a'..'z', '0'..'9', '-', '.', '_', '~'];
@@ -95,7 +112,11 @@ end;
 
 function OAuthTimestamp: string;
 begin
-    Result := IntToStr(SecondsBetween(Now, EncodeDate(1970, 1, 1)));
+    // Now is LOCAL time - must convert to UTC before diffing against the
+    // epoch, or this is off by the system's timezone offset (fine at UTC+0,
+    // wrong everywhere else, and easily enough to blow past a server's
+    // oauth_timestamp clock-skew tolerance).
+    Result := IntToStr(SecondsBetween(LocalTimeToUniversal(Now), EncodeDate(1970, 1, 1)));
 end;
 
 function OAuthNonce: string;
@@ -149,7 +170,7 @@ begin
     // note the consumer key and secret happen to be the same literal string
     // ("anyone") in this ecosystem, which is easy to confuse with each other.
     SigningKey := OAuthPercentEncode(OAuthConsumerSecret) + '&' + OAuthPercentEncode(TokenSecret);
-    Signature := EncodeStringBase64(HMACSHA1(SigningKey, BaseString));
+    Signature := EncodeStringBase64(HexDigestToRawBytes(HMACSHA1(SigningKey, BaseString)));
 
     Params.AddParam('oauth_signature', Signature);
 end;
