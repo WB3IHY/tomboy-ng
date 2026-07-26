@@ -1225,22 +1225,27 @@ begin
 {Time}  SyncInfo[ord(SyncFile)].SyncTimingIndex   := GetSyncTimingIndex('SyncTimingFile',   'Autosync',     'FileSyncEnabled');
         SyncInfo[ord(SyncGitHub)].SyncTimingIndex := GetSyncTimingIndex('SyncTimingGitHub', 'AutosyncGit',  'GitHubSyncEnabled');
         SyncInfo[ord(SyncMisty)].SyncTimingIndex  := GetSyncTimingIndex('SyncTimingMisty',  'AutosyncMisty','MistySyncEnabled');
+        SyncInfo[ord(SyncWebSync)].SyncTimingIndex := GetSyncTimingIndex('SyncTimingWebSync', 'AutosyncWebSync', 'WebSyncEnabled');
 
 {Add}   SyncInfo[ord(SyncFile)].RemoteAddress := ConfigFile.readstring('SyncSettings', 'SyncRepo', '');     // that is for file sync
         SyncInfo[ord(SyncGitHub)].RemoteAddress := ConfigFile.readstring('SyncSettings', 'SyncRepoGithub', '');
         SyncInfo[ord(SyncMisty)].RemoteAddress := ConfigFile.readstring('SyncSettings', 'SyncRepoMisty', '');
+        SyncInfo[ord(SyncWebSync)].RemoteAddress := ConfigFile.readstring('SyncSettings', 'SyncRepoWebSync', '');
 
 {PW}    SyncInfo[ord(SyncFile)].PW   := '';
         SyncInfo[ord(SyncGitHub)].PW := DecodeStringBase64(Configfile.ReadString('SyncSettings', 'GHPassword', ''));
         SyncInfo[ord(SyncMisty)].PW  := DecodeStringBase64(Configfile.ReadString('SyncSettings', 'MistyPassword', ''));
+        SyncInfo[ord(SyncWebSync)].PW := '';        // not used - auth is the persisted OAuth access token, not a typed password
 
 {Last}  SyncInfo[ord(SyncFile)].LastSync   := ISO8601ToDate(Configfile.ReadString('SyncSettings', 'SyncTimingFileLast', TooEarlyDate));
         SyncInfo[ord(SyncGitHub)].LastSync := ISO8601ToDate(Configfile.ReadString('SyncSettings', 'SyncTimingGitHubLast', TooEarlyDate));
         SyncInfo[ord(SyncMisty)].LastSync  := ISO8601ToDate(Configfile.ReadString('SyncSettings', 'SyncTimingMistyLast', TooEarlyDate));
+        SyncInfo[ord(SyncWebSync)].LastSync := ISO8601ToDate(Configfile.ReadString('SyncSettings', 'SyncTimingWebSyncLast', TooEarlyDate));
 
 {User}  SyncInfo[ord(SyncFile)].User   := '';
         SyncInfo[ord(SyncGitHub)].User := Configfile.ReadString('SyncSettings', 'GHUserName', '');
         SyncInfo[ord(SyncMisty)].User  := Configfile.ReadString('SyncSettings', 'MistyUserName', '');
+        SyncInfo[ord(SyncWebSync)].User := '';       // not used, see PW above
         ComboSyncTypeChange(self);
 
         // ------------- S P E L L I N G ---------------------------------------
@@ -1405,6 +1410,10 @@ begin
             ConfigFile.writestring('SyncSettings', 'MistyPassword',    EncodeStringBase64(SyncInfo[ord(SyncMisty)].PW));
             ConfigFile.writestring('SyncSettings', 'MistyUserName',    SyncInfo[ord(SyncMisty)].User);
             end;
+{WebSync}   if  SyncInfo[ord(SyncWebSync)].RemoteAddress <> '' then begin
+            ConfigFile.WriteString('SyncSettings', 'SyncTimingWebSync', SyncTimingStates[SyncInfo[ord(SyncWebSync)].SyncTimingIndex]);
+            ConfigFile.writestring('SyncSettings', 'SyncRepoWebSync',   SyncInfo[ord(SyncWebSync)].RemoteAddress);
+            end;
 	        if RadioAlwaysAsk.Checked then
                 ConfigFile.writestring('SyncSettings', 'SyncOption', 'AlwaysAsk')
             else if RadioUseLocal.Checked then
@@ -1424,6 +1433,9 @@ begin
                 end;
                 if SyncInfo[ord(SyncMisty)].LastSync > ISO8601ToDate(EarlyDate) then begin  // either may not be set
                     ConfigFile.writestring('SyncSettings', 'SyncTimingMistyLast', FormatDateTime('yyyy-mm-dd"T"hh:mm:ss', SyncInfo[ord(SyncMisty)].LastSync));
+                end;
+                if SyncInfo[ord(SyncWebSync)].LastSync > ISO8601ToDate(EarlyDate) then begin  // either may not be set
+                    ConfigFile.writestring('SyncSettings', 'SyncTimingWebSyncLast', FormatDateTime('yyyy-mm-dd"T"hh:mm:ss', SyncInfo[ord(SyncWebSync)].LastSync));
                 end;
                //TestSt := FormatDateTime('yyyy-mm-dd"T"hh:mm:ss', SyncTimingFileLast);
                //Writeln('Incoming Datetime is ' + TestSt);
