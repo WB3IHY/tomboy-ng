@@ -322,6 +322,13 @@ type
         SearchIsCaseSensitive : boolean;
         NextAutoSnapshot : TDateTime;
 
+                        { Runs the one-time OAuth "Connect" step for the Tomboy Web Sync
+                          transport (Grauphel/Rainy/Puddle) if not already connected against
+                          ServerURL - opens the system browser, blocks until the user
+                          approves or it times out. Returns True if we're connected
+                          (either already were, or just succeeded), False on failure
+                          (with a message already shown to the user). }
+        function DoWebSyncConnect(const ServerURL: string): boolean;
                         // Clears any Sync we have configured. Only proceeds if lock is available
                         // but DOES NOT grab that lock because it has trashed the Sync anyway.
         function DidCleanAndLockSync(): boolean;
@@ -534,6 +541,7 @@ uses IniFiles, LazLogger,
 
 
     Sync,           // in autosync mode, we talk direct to Sync
+    transwebsync,   // so ButtSetupSyncClick can run the one-time OAuth Connect step
     tb_utils,
     recover,        // Recover lost or damaged files
     mainunit,       // so we can call ShowHelpNote()
@@ -944,6 +952,9 @@ begin
             ord(SyncMisty)  : begin SyncInfo[i].DisplayInfo1   := rsMistySyncInfo1;
                                     SyncInfo[i].DisplayInfo2   := rsMistySyncInfo2;
                                     SyncInfo[i].DisplayHeading := rsSyncTypeMisty; end;
+            ord(SyncWebSync): begin SyncInfo[i].DisplayInfo1   := rsWebSyncInfo1;
+                                    SyncInfo[i].DisplayInfo2   := rsWebSyncInfo2;
+                                    SyncInfo[i].DisplayHeading := rsSyncTypeWebSync; end;
         end;
     end;
     ComboSyncType.Items.Clear;
@@ -2021,10 +2032,50 @@ begin
                 EditUserName.Text := 'tomboy-ng';
                 // SetSelectedTabOrder(ComboSyncType.ItemIndex);
             end;
+        3 : begin                                                               // Tomboy Web Sync (Grauphel/Rainy/Puddle)
+                // No username/password field needed here at all - auth is a
+                // one-time OAuth browser step triggered from the Setup button
+                // (see ButtSetupSyncClick), not anything typed into this form.
+                for Ctrl in [GroupBoxUser, GroupBoxToken]
+                    do Ctrl.Visible := False;
+                EditRepo.ReadOnly := False;
+                EditRepo.TabStop := True;
+                EditRepo.Hint := 'eg https://puddle.example.com/ - click Setup to authorize in your browser';
+            end;
     end;
     MaskSettingsChanged := RememberMask;
 end;
 
+
+function TSett.DoWebSyncConnect(const ServerURL: string): boolean;
+var
+    WebSync: TWebSyncTrans;
+    ErrMsg: string;
+    TransConfigDir: string;
+begin
+    Result := False;
+    TransConfigDir := LocalConfig + SyncInfo[ord(SyncWebSync)].DisplayName + PathDelim;
+    ForceDirectory(TransConfigDir);
+    WebSync := TWebSyncTrans.Create(nil);
+    try
+        WebSync.ConfigDir := TransConfigDir;
+        WebSync.RemoteAddress := ServerURL;
+        if WebSync.IsConnected then exit(True);    // already connected, nothing to do
+        if mrYes <> QuestionDlg('Connect', 'Your browser will now open to authorize tomboy-ng '
+                + 'against ' + ServerURL + '. Continue?', mtConfirmation, [mrYes, mrNo], 0) then
+            exit(False);
+        Screen.Cursor := crHourGlass;
+        try
+            Result := WebSync.ConnectViaOAuth(ErrMsg);
+        finally
+            Screen.Cursor := crDefault;
+        end;
+        if not Result then
+            ShowMessage('Failed to connect: ' + ErrMsg);
+    finally
+        WebSync.Free;
+    end;
+end;
 
 procedure TSett.ButtSetupSyncClick(Sender: TObject);
 var
@@ -2063,6 +2114,14 @@ begin
             FormSync.RemoteAddress := trim(EditRepo.Text);
             FormSync.Password := EditPW.Text;
             FormSync.UserName := EditUserName.text;
+          end;
+      3 : begin                                                                 // Tomboy Web Sync (Grauphel/Rainy/Puddle)
+            FormSync.RemoteAddress := trim(EditRepo.Text);
+            if FormSync.RemoteAddress = '' then begin
+                ShowMessage('Please enter the server URL first.');
+                exit;
+            end;
+            if not DoWebSyncConnect(FormSync.RemoteAddress) then exit;
           end;
     end;
     FormSYNC.ReadyToRun := True;

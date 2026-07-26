@@ -83,6 +83,8 @@ RESOURCESTRING
   rsGithubSyncInfo2 = 'you should read the tomboy-ng wiki page for instructions.';
   rsMistySyncInfo1 = 'tomboy-ng can sync to a network server called Misty, sync and edit notes';
   rsMistySyncInfo2 = 'you should read the tomboy-ng wiki page for instructions.';
+  rsWebSyncInfo1 = 'tomboy-ng can sync to any Tomboy Web Sync API 1.0 server - Grauphel, Rainy, or Puddle';
+  rsWebSyncInfo2 = 'enter the server URL and click Setup - your browser will open to authorize this app';
   rsNetworkNotAvailable = 'Network not available';
 
 
@@ -99,6 +101,7 @@ RESOURCESTRING
   rsSyncTypeFile = 'File Sync - local or shared filesystem';
   rsSyncTypeGitHub = 'Github - free Github account required';
   rsSyncTypeMisty  = 'Misty - Misty server required';
+  rsSyncTypeWebSync = 'Tomboy Web Sync - Grauphel, Rainy or Puddle server required';
 
   // BackUpView
 
