@@ -30,7 +30,8 @@ uses
 
 type TSyncTransport=(SyncFile,  // Sync to locally available dir, things like smb: mount, google drive etc
                 SyncGithub,     // sends markdown notes to/from github.
-                SyncMisty);     // Using the Misty Web Server
+                SyncMisty,      // Using the Misty Web Server
+                SyncWebSync);   // Tomboy Web Sync API 1.0 (OAuth) - Grauphel, Rainy, Puddle
 type TTransportHelper = type Helper for TSyncTransport
         function ToString:String;
     end;

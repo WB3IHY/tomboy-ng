@@ -443,6 +443,7 @@ uses laz2_DOM, laz2_XMLRead,
     TransGithub,
     {$endif}
     transmisty,
+    transwebsync,
     LazLogger, LazFileUtils, FileUtil,
     {$ifndef TESTRIG}
     Settings,
@@ -1063,6 +1064,16 @@ begin
                         ForceDirectory(ConfigDir);
                       end;
         {$endif}
+
+        SyncWebSync : begin
+                        if SyncAddress = '' then
+                            SyncAddress := Sett.SyncInfo[ord(SyncWebSync)].RemoteAddress;
+                        Transport := TWebSyncTrans.Create(ProgressProcedure);
+                        // own subdir, like Misty/Github - this is where the persisted
+                        // OAuth access token lives (see transwebsync's TokenFilePath).
+                        ConfigDir := ConfigDir + Sett.SyncInfo[ord(SyncWebSync)].DisplayName + PathDelim;
+                        ForceDirectory(ConfigDir);
+                      end;
     end;
 //    Transport.ProgressProcedure := ProgressProcedure;
     Transport.Password := Password;

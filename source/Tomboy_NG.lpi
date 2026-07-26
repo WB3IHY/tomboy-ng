@@ -1421,6 +1421,14 @@
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>
+        <Filename Value="transwebsync.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="oauth1client.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
+      <Unit>
         <Filename Value="qtWorkAround.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="QtWorkaround"/>
