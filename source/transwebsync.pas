@@ -36,12 +36,15 @@ unit transwebsync;
   drop-in transport requiring no changes to the shared sync engine beyond
   the one unavoidable construction case in TSync.SetTransport.
 
-  Wire field names/shapes, and the fact that "note-content" on the wire is
-  the *already-wrapped* <note-content version="...">Title\n\nBody</note-content>
-  fragment (not raw body text, and not a full .note document) are confirmed
-  against original desktop Tomboy's own NoteConvert.cs - not re-derived from
-  the REST spec doc. The full-note reconstruction on download matches the
-  shape tomboy-ng's own savenote.pas Header()/Footer() produce.
+  Wire field names/shapes are not re-derived from the REST spec doc. One
+  detail worth flagging since it's easy to get backwards: "note-content" on
+  the wire is the *unwrapped inner* content of a note (what would go
+  between <note-content version="...">...</note-content>), NOT the fragment
+  including those tags itself - confirmed empirically against a real
+  desktop Tomboy client's PUT body (as stored verbatim by Puddle, which does
+  no wrapping/unwrapping of its own). The full-note reconstruction on
+  download re-adds the <note-content version="0.1"> wrapper itself, matching
+  the shape tomboy-ng's own savenote.pas Header()/Footer() produce.
 
   OAuth connect flow (ConnectViaOAuth) opens the system browser and waits on
   a local loopback listener for the redirect, matching how desktop Tomboy's
@@ -215,21 +218,20 @@ begin
     Result := copy(RawXml, P1, P2 - P1);
 end;
 
-    // Pulls the already-fully-formed <note-content ...>...</note-content>
-    // fragment straight out of a local .note file's raw XML - this is
-    // exactly what the wire format's "note-content" field expects (see
-    // unit header - confirmed against desktop Tomboy's NoteConvert.cs).
-function ExtractNoteContentFragment(const RawXml: string): string;
-var
-    P1, P2: integer;
+    // Real Tomboy Web Sync clients send "note-content" as the body only -
+    // the title is never repeated as content's first line on the wire (see
+    // unit header). But locally, a .note file's note-content buffer always
+    // starts with the title itself followed by a blank line (matching
+    // savenote.pas's own Header()/Footer() convention - see a freshly
+    // created note for the exact shape). Strip that prefix here so what we
+    // upload matches what every other real client sends.
+function StripTitlePrefix(const ContentFragment, Title: string): string;
 begin
-    Result := '';
-    P1 := Pos('<note-content', RawXml);
-    if P1 = 0 then exit;
-    P2 := Pos('</note-content>', RawXml);
-    if P2 = 0 then exit;
-    inc(P2, Length('</note-content>'));
-    Result := copy(RawXml, P1, P2 - P1);
+    Result := ContentFragment;
+    if (Title <> '') and (Pos(Title, Result) = 1) then
+        Result := copy(Result, Length(Title) + 1, MaxInt);
+    while (copy(Result, 1, Length(LineEnding)) = LineEnding) do
+        Result := copy(Result, Length(LineEnding) + 1, MaxInt);
 end;
 
     // Returns a JSON array literal, eg ["system:notebook:Foo","system:template"],
@@ -278,7 +280,12 @@ var
     Title, ContentFragment, ChangeDate, MetaChangeDate, CreateDate, TagLines: string;
     TagsNode, ATag: TJsonNode;
 begin
-    Title := RemoveBadXMLCharacters(JsonStr(NoteNode, 'title', ''));
+    // Some real clients (e.g. desktop Tomboy) send the title already
+    // XML-entity-escaped rather than as plain text (matching what they
+    // happen to store locally) - decode any such entities first, or
+    // RemoveBadXMLCharacters below would double-escape the '&' and leave a
+    // literal "&apos;" etc. visible in the rebuilt title.
+    Title := RemoveBadXMLCharacters(RestoreBadXMLChar(JsonStr(NoteNode, 'title', '')));
     ContentFragment := JsonStr(NoteNode, 'note-content', '');
     ChangeDate := JsonStr(NoteNode, 'last-change-date', '');
     MetaChangeDate := JsonStr(NoteNode, 'last-metadata-change-date', '');
@@ -292,14 +299,14 @@ begin
         TagsNode := NoteNode.Find('tags');
         if (TagsNode <> nil) and (TagsNode.Kind = nkArray) then
             for ATag in TagsNode do
-                TagLines := TagLines + '    <tag>' + RemoveBadXMLCharacters(ATag.AsString) + '</tag>' + LineEnding;
+                TagLines := TagLines + '    <tag>' + RemoveBadXMLCharacters(RestoreBadXMLChar(ATag.AsString)) + '</tag>' + LineEnding;
     end;
 
     Result :=
         '<?xml version="1.0" encoding="utf-8"?>' + LineEnding +
         '<note version="0.3" xmlns:link="http://beatniksoftware.com/tomboy/link" xmlns:size="http://beatniksoftware.com/tomboy/size" xmlns="http://beatniksoftware.com/tomboy">' + LineEnding +
         '  <title>' + Title + '</title>' + LineEnding +
-        '  <text xml:space="preserve">' + ContentFragment + '</text>' + LineEnding +
+        '  <text xml:space="preserve"><note-content version="0.1">' + Title + LineEnding + LineEnding + ContentFragment + '</note-content></text>' + LineEnding +
         '  <last-change-date>' + ChangeDate + '</last-change-date>' + LineEnding +
         '  <last-metadata-change-date>' + MetaChangeDate + '</last-metadata-change-date>' + LineEnding +
         '  <create-date>' + CreateDate + '</create-date>' + LineEnding +
@@ -699,11 +706,12 @@ begin
         end;
         RawXml := LoadStringFromFile(NotesDir + ID + '.note');
         Title := ExtractXmlField(RawXml, 'title');
-        ContentFragment := ExtractNoteContentFragment(RawXml);
+        ContentFragment := ExtractXmlField(RawXml, 'note-content');
         if ContentFragment = '' then begin
             ErrorString := 'TWebSyncTrans.UploadNotes - failed to extract note-content : ' + ID;
             exit(False);
         end;
+        ContentFragment := StripTitlePrefix(ContentFragment, Title);
         ChangeDate := ExtractXmlField(RawXml, 'last-change-date');
         MetaChangeDate := ExtractXmlField(RawXml, 'last-metadata-change-date');
         CreateDate := ExtractXmlField(RawXml, 'create-date');

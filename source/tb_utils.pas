@@ -558,6 +558,18 @@ begin
             Start := Index + 4;
             Continue;
 	  end;
+      if '&apos;' = Copy(Str, Index, 6) then begin
+      		Result := Result + Copy(Str, Start, Index - Start) + '''';
+            inc(Index);
+            Start := Index + 5;
+            Continue;
+	  end;
+      if '&quot;' = Copy(Str, Index, 6) then begin
+      		Result := Result + Copy(Str, Start, Index - Start) + '"';
+            inc(Index);
+            Start := Index + 5;
+            Continue;
+	  end;
       inc(Index);
 	end;
     Result := Result + Copy(Str, Start, Index - Start);
